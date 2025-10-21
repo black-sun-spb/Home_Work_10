@@ -28,8 +28,23 @@ class PaymentSerializer(serializers.HyperlinkedModelSerializer):
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
     """Пользователь с историей платежей"""
-    payments = PaymentSerializer(many=True, read_only=True)
+    payments = PaymentSerializer(many=True, read_only=True)  # source не нужен
 
     class Meta:
         model = User
         fields = ['id', 'email', 'phone', 'city', 'avatar', 'payments', 'url']
+        extra_kwargs = {
+            'url': {'view_name': 'user-detail', 'lookup_field': 'pk'}
+        }
+
+
+class RegisterSerializer(serializers.ModelSerializer):
+    """Регистрация нового пользователя"""
+    password = serializers.CharField(write_only=True, required=True, min_length=6)
+
+    class Meta:
+        model = User
+        fields = ('email', 'password', 'phone', 'city', 'avatar')
+
+    def create(self, validated_data):
+        return User.objects.create_user(**validated_data)
