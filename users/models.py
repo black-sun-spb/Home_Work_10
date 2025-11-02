@@ -6,6 +6,8 @@ from lms.models import Course, Lesson
 # ----------------------
 # Менеджер для пользователя
 # ----------------------
+
+
 class CustomUserManager(BaseUserManager):
     use_in_migrations = True
 
@@ -33,6 +35,8 @@ class CustomUserManager(BaseUserManager):
 # ----------------------
 # Кастомная модель пользователя
 # ----------------------
+
+
 class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
@@ -45,6 +49,7 @@ class User(AbstractUser):
 
     objects = CustomUserManager()
 
+
 # ----------------------
 # Модель платежа
 # ----------------------
@@ -54,12 +59,42 @@ class Payment(models.Model):
         ('transfer', 'Перевод на счет'),
     ]
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payments', verbose_name='Пользователь')
-    date = models.DateTimeField(auto_now_add=True, verbose_name='Дата оплаты')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, null=True, blank=True, related_name='course_payments', verbose_name='Оплаченный курс')
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True, related_name='lesson_payments', verbose_name='Оплаченный урок')
-    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма оплаты')
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, verbose_name='Способ оплаты')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='payments',
+        verbose_name='Пользователь'
+    )
+    date = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата оплаты'
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='course_payments',
+        verbose_name='Оплаченный курс'
+    )
+    lesson = models.ForeignKey(
+        Lesson,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='lesson_payments',
+        verbose_name='Оплаченный урок'
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name='Сумма оплаты'
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHODS,
+        verbose_name='Способ оплаты'
+    )
 
     def __str__(self):
         return f"{self.user.email} — {self.amount} ({self.get_payment_method_display()})"

@@ -5,7 +5,6 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import User, Payment
 from .serializers import UserSerializer, PaymentSerializer, RegisterSerializer
-from .permissions import IsModer, IsOwner
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
