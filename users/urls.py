@@ -16,4 +16,3 @@ urlpatterns = [
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),  # доступно всем
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
-

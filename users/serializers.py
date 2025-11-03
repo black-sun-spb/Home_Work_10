@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import User, Payment
 from lms.models import Course, Lesson
 
+
 class PaymentSerializer(serializers.HyperlinkedModelSerializer):
     """Платежи с гиперссылками на пользователя, курс и урок"""
     user = serializers.HyperlinkedRelatedField(
