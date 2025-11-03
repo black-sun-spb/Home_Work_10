@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
+import os
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -45,6 +46,7 @@ INSTALLED_APPS = [
     'users',           # приложение с пользователями
     'lms',             # приложение с курсами и уроками
     'django_filters',
+    'drf_yasg',
 ]
 
 
@@ -152,3 +154,5 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
+
+STRIPE_API_KEY = os.getenv("STRIPE_API_KEY", "sk_test_your_key_here")

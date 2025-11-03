@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-
+from .stripe_service import create_stripe_product, create_stripe_price, create_stripe_checkout_session, retrieve_checkout_session
 from .models import Course, Lesson, Subscription
 from .serializers import CourseSerializer, LessonSerializer
 from .paginators import StandardResultsSetPagination
@@ -17,11 +17,10 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.groups.filter(name='moderators').exists():
-            qs = Course.objects.all()
-        else:
-            qs = Course.objects.filter(owner=user)
-        return qs.order_by('id')  # Добавлено явное упорядочивание
+        # Если это Swagger (fake view) или аноним — возвращаем пустой QuerySet
+        if getattr(self, 'swagger_fake_view', False) or not user.is_authenticated:
+            return Course.objects.none()
+        return Course.objects.filter(owner=user)
 
     def perform_create(self, serializer):
         if self.request.user.groups.filter(name='moderators').exists():
@@ -55,11 +54,9 @@ class LessonViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.groups.filter(name='moderators').exists():
-            qs = Lesson.objects.all()
-        else:
-            qs = Lesson.objects.filter(course__owner=user)
-        return qs.order_by('id')  # Добавлено явное упорядочивание
+        if getattr(self, 'swagger_fake_view', False) or not user.is_authenticated:
+            return Lesson.objects.none()
+        return Lesson.objects.filter(course__owner=user)
 
     def perform_create(self, serializer):
         if self.request.user.groups.filter(name='moderators').exists():
@@ -70,3 +67,25 @@ class LessonViewSet(viewsets.ModelViewSet):
         if self.request.user.groups.filter(name='moderators').exists():
             raise PermissionDenied("Модераторы не могут удалять уроки.")
         instance.delete()
+
+
+class PaymentViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def create_checkout_session(self, request, pk=None):
+        course = Course.objects.get(pk=pk)
+        product = create_stripe_product(course.title, course.description)
+        price = create_stripe_price(product['id'], amount=10)  # допустим цена 10$
+        session = create_stripe_checkout_session(
+            price_id=price['id'],
+            success_url='https://example.com/success',
+            cancel_url='https://example.com/cancel'
+        )
+        return Response({'checkout_url': session.url})
+
+    @action(detail=True, methods=['get'])
+    def retrieve_session(self, request, pk=None):
+        session_id = request.query_params.get('session_id')
+        session = retrieve_checkout_session(session_id)
+        return Response(session)
