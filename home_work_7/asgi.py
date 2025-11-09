@@ -1,5 +1,5 @@
 """
-ASGI config for Home_Work_7 project.
+ASGI config for home_work_7 project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
@@ -11,6 +11,6 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Home_Work_7.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'home_work_7.settings')
 
 application = get_asgi_application()
