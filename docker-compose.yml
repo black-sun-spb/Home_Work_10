@@ -1,9 +1,25 @@
 version: "3.9"
 
 services:
+  backend:
+    build: ./backend
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env
+    environment:
+      - DOCKER_ENV=1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+      - redis
+
   db:
     image: postgres:15
-    container_name: home_work_10-db
+    env_file:
+      - ./.env
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -11,75 +27,37 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7
-    container_name: home_work_10-redis
     ports:
       - "6379:6379"
-    restart: always
-    healthcheck:
-      test: ["CMD", "redis-cli", "PING"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  web:
-    environment:
-      - LANG=C.UTF-8
-      - LC_ALL=C.UTF-8
-    build: .
-    container_name: home_work_10-web
-    command: gunicorn home_work_7.wsgi:application --bind 0.0.0.0:8000
-
-    volumes:
-      - .:/app
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      - db
-      - redis
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   celery:
-    build: .
-    container_name: home_work_10-celery
-    command: celery -A home_work_7 worker -l info
-    volumes:
-      - .:/app
+    build: ./backend
+    command: celery -A home_work_7 worker --loglevel=INFO
     env_file:
-      - .env
+      - ./.env
+    volumes:
+      - ./backend:/app
     depends_on:
-      - db
+      - backend
       - redis
-    restart: on-failure
+      - db
 
-  celery-beat:
-    build: .
-    container_name: home_work_10-celery-beat
-    command: celery -A home_work_7 beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-    volumes:
-      - .:/app
+  celery_beat:
+    build: ./backend
+    command: celery -A home_work_7 beat --loglevel=INFO
     env_file:
-      - .env
+      - ./.env
+    volumes:
+      - ./backend:/app
     depends_on:
-      - db
+      - backend
       - redis
-    restart: on-failure
+      - db
 
 volumes:
-  db_data:
+  postgres_data:
+
