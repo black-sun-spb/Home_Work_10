@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       db:
-        image: postgres:15
+        image: postgres:14
         env:
           POSTGRES_DB: ${{ secrets.DB_NAME }}
           POSTGRES_USER: ${{ secrets.DB_USER }}
@@ -22,7 +22,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ${secrets.DB_USER} -d ${secrets.DB_NAME}"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 15s
           --health-timeout 10s
           --health-retries 20
@@ -40,6 +40,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: DB Container Logs
+        if: always()
+        run: docker logs ${{ job.services.db.id }} || echo "Логи не доступны"
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
