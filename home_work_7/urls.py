@@ -54,5 +54,5 @@ urlpatterns = [
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 
     # Healthcheck
-    path('health/', health_check, name='health'),
+    path('api/v1/health/', health_check, name='health-v1'),
 ]
