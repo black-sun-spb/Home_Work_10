@@ -1,27 +1,85 @@
-version: '3.9'
+version: "3.9"
 
 services:
   db:
     image: postgres:15
+    container_name: home_work_10-db
     environment:
-      POSTGRES_USER: taisiya
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: home_work_10
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: home_work_10-redis
+    ports:
+      - "6379:6379"
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
+    environment:
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     build: .
-    command: gunicorn wsgi:application --bind 0.0.0.0:8000
+    container_name: home_work_10-web
+    command: gunicorn home_work_7.wsgi:application --bind 0.0.0.0:8000
+
     volumes:
       - .:/app
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     depends_on:
       - db
+      - redis
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  celery:
+    build: .
+    container_name: home_work_10-celery
+    command: celery -A home_work_7 worker -l info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    restart: on-failure
+
+  celery-beat:
+    build: .
+    container_name: home_work_10-celery-beat
+    command: celery -A home_work_7 beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    restart: on-failure
 
 volumes:
   db_data:
-
