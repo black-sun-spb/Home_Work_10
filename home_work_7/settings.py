@@ -1,10 +1,10 @@
+# project/settings.py
 from pathlib import Path
+from decouple import config
 from datetime import timedelta
-from celery.schedules import crontab
-import socket
 import os
 import logging
-from decouple import config
+from celery.schedules import crontab
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security & Debug
 # ====================================
 SECRET_KEY = config("SECRET_KEY", default="django-insecure-default-key")
-DEBUG = config("DEBUG", default=True, cast=bool)
+DEBUG = config("DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="127.0.0.1,localhost").split(",")
 
 # ====================================
@@ -71,31 +71,16 @@ WSGI_APPLICATION = 'home_work_7.wsgi.application'
 # ====================================
 # Database
 # ====================================
-# Определяем DB_HOST автоматически
-# Если контейнер Docker запущен, хост 'db' доступен
-# Иначе используем localhost
-def is_docker_env():
-    if os.environ.get('DOCKER_ENV'):
-        logger.info("Docker environment detected via DOCKER_ENV")
-        return True
-    if 'docker' in socket.gethostname().lower():
-        logger.info("Docker environment detected via hostname")
-        return True
-    try:
-        socket.gethostbyname('db')
-        logger.info("Docker environment detected (db resolvable)")
-        return True
-    except socket.gaierror:
-        logger.info("Local environment detected")
-        return False
-
-# Конфигурация БД
-DB_HOST = config('DB_HOST', default=('db' if is_docker_env() else 'localhost'), cast=str)
+# Логика выбора хоста:
+# 1. Если явно задан DB_HOST в .env/окружении — используем его.
+# 2. Иначе, если DOCKER_ENV задан (в docker-compose укажем DOCKER_ENV=1) — 'db'
+# 3. Иначе — '127.0.0.1'
+_default_db_host = 'db' if os.getenv('DOCKER_ENV') else '127.0.0.1'
+DB_HOST = config('DB_HOST', default=_default_db_host, cast=str)
 DB_NAME = config('DB_NAME', default='home_work_10', cast=str)
 DB_USER = config('DB_USER', default='postgres', cast=str)
 DB_PASSWORD = config('DB_PASSWORD', default='postgres', cast=str)
-DB_PORT = config('DB_PORT', default=5432, cast=int)
-
+DB_PORT = config('DB_PORT', default='5432')
 
 DATABASES = {
     'default': {
@@ -111,7 +96,6 @@ DATABASES = {
         },
     }
 }
-
 
 # ====================================
 # Password validation
