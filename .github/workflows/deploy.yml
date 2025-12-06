@@ -16,10 +16,9 @@ jobs:
       db:
         image: postgres:15
         env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: project_db
+          POSTGRES_USER: admin_user
+          POSTGRES_PASSWORD: StrongPass!2025
         ports:
           - 5432:5432
         options: >-
@@ -28,6 +27,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,24 +39,30 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: 3.12
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Настраиваем .env для тестов
+      # Настройка .env для тестов
       - name: Configure .env
         run: |
-          echo "DB_NAME=test_db" >> .env
-          echo "DB_USER=postgres" >> .env
-          echo "DB_PASSWORD=postgres" >> .env
+          echo "SECRET_KEY=test-secret-key-for-ci" >> .env
+          echo "DEBUG=0" >> .env
+          echo "ALLOWED_HOSTS=127.0.0.1,localhost" >> .env
+          echo "DB_NAME=project_db" >> .env
+          echo "DB_USER=admin_user" >> .env
+          echo "DB_PASSWORD=StrongPass!2025" >> .env
           echo "DB_HOST=db" >> .env
           echo "DB_PORT=5432" >> .env
+          echo "REDIS_HOST=redis" >> .env
+          echo "REDIS_PORT=6379" >> .env
+          echo "DJANGO_SETTINGS_MODULE=home_work_7.settings_test" >> .env
 
-      # Ждём готовности PostgreSQL (усиленная проверка)
-      - name: Wait for PostgreSQL (retry 10 times)
+      # Ждём готовности PostgreSQL
+      - name: Wait for PostgreSQL
         run: |
           for i in {1..10}; do
             if nc -zv db 5432; then
@@ -65,7 +75,7 @@ jobs:
           echo "PostgreSQL failed to start!"
           exit 1
 
-      # Запускаем миграции
+      # Применяем миграции
       - name: Run migrations
         run: python manage.py migrate
         env:
@@ -77,7 +87,7 @@ jobs:
         env:
           DJANGO_SETTINGS_MODULE: home_work_7.settings_test
 
-      # Деплой (только если тесты прошли)
+      # Деплой (если тесты успешны)
       - name: Deploy to server
         if: success()
         uses: appleboy/ssh-action@master
@@ -87,7 +97,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            cd ~/home_work_10
+            cd ~/Home_work_10
             git pull origin ${{ github.ref_name }}
             docker-compose down
             docker-compose up -d --build
+

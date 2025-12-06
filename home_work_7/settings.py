@@ -76,11 +76,11 @@ WSGI_APPLICATION = 'home_work_7.wsgi.application'
 # 2. Иначе, если DOCKER_ENV задан (в docker-compose укажем DOCKER_ENV=1) — 'db'
 # 3. Иначе — '127.0.0.1'
 _default_db_host = os.getenv("DOCKER_ENV", None) and "db" or "localhost"
-DB_HOST = config('DB_HOST', default=_default_db_host, cast=str)
-DB_NAME = config('DB_NAME', default='home_work_10', cast=str)
-DB_USER = config('DB_USER', default='postgres', cast=str)
-DB_PASSWORD = config('DB_PASSWORD', default='postgres', cast=str)
-DB_PORT = config('DB_PORT', default='5432')
+DB_HOST = config('DB_HOST', default='db')
+DB_NAME = config('DB_NAME', default='home_work_10')
+DB_USER = config('DB_USER', default='postgres')
+DB_PASSWORD = config('DB_PASSWORD', default='postgres')
+DB_PORT = config('DB_PORT', default='5432', cast=int)
 
 DATABASES = {
     'default': {
@@ -90,12 +90,10 @@ DATABASES = {
         'PASSWORD': DB_PASSWORD,
         'HOST': DB_HOST,
         'PORT': DB_PORT,
-        'OPTIONS': {
-            'connect_timeout': 10,
-            'options': '-c client_encoding=utf8',
-        },
+        'OPTIONS': {'connect_timeout': 10, 'options': '-c client_encoding=utf8'},
     }
 }
+
 
 # ====================================
 # Password validation
@@ -166,3 +164,7 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=0, minute=0),
     },
 }
+
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+TEST_RUNNER = 'django.test.runner.DiscoverRunner'
+CACHES = {'default': {'BACKEND': 'django.core.cache.backends.dummy.DummyCache'}}
