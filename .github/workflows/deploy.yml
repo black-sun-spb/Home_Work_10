@@ -10,15 +10,16 @@ on:
 
 jobs:
   test-and-deploy:
+    name: Test and Deploy
     runs-on: ubuntu-latest
 
     services:
       db:
         image: postgres:15
         env:
-          POSTGRES_DB: project_db
-          POSTGRES_USER: admin_user
-          POSTGRES_PASSWORD: StrongPass!2025
+          DB_NAME: project_db
+          DB_USER: admin_user
+          DB_PASSWORD: StrongPass!2025
         ports:
           - 5432:5432
         options: >-
@@ -44,7 +45,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: 3.12
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -67,31 +68,11 @@ jobs:
           echo "STRIPE_API_KEY=sk_test_1234567890abcdef" >> .env
           echo "DJANGO_SETTINGS_MODULE=home_work_7.settings_test" >> .env
 
-      # Ждём готовности PostgreSQL
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..20}; do
-            if nc -zv db 5432; then
-              echo "PostgreSQL is ready!"
-              break
-            fi
-            echo "Waiting for PostgreSQL... attempt $i/20"
-            sleep 5
-          done
+      # Небольшая пауза, чтобы сервисы успели подняться
+      - name: Wait for services
+        run: sleep 15
 
-      # Ждём готовности Redis
-      - name: Wait for Redis
-        run: |
-          for i in {1..20}; do
-            if nc -zv redis 6379; then
-              echo "Redis is ready!"
-              break
-            fi
-            echo "Waiting for Redis... attempt $i/20"
-            sleep 5
-          done
-
-      # Запускаем миграции
+      # Запуск миграций
       - name: Run migrations
         run: python manage.py migrate
         env:
