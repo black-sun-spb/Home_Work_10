@@ -22,7 +22,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U ${secrets.DB_USER} -d ${secrets.DB_NAME}"
           --health-interval 15s
           --health-timeout 10s
           --health-retries 20
@@ -41,9 +41,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: DB Container Logs
+      - name: Debug PostgreSQL Init
         if: always()
-        run: docker logs ${{ job.services.db.id }} || echo "Логи не доступны"
+        run: docker logs ${{ job.services.db.id }} | grep -i "role\|user\|create" || echo "Инициализация не найдена"
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -85,16 +85,20 @@ jobs:
       # Ожидание PostgreSQL с усиленной проверкой
       - name: Wait for PostgreSQL
         run: |
-          echo "Начинаем проверку PostgreSQL (до 300с)..."
-          for i in {1..40}; do
-            if nc -zv db 5432; then
-              echo "✅ PostgreSQL готов на попытке $i!"
-              exit 0
+          echo "Начинаем проверку PostgreSQL (до 400 с)..."
+          for i in {1..50}; do
+            if getent hosts db > /dev/null; then
+              echo "✅ DNS: имя 'db' резолвится (попытка $i)"
+              if nc -zv db 5432; then
+                echo "✅ PostgreSQL готов на попытке $i!"
+                exit 0
+              fi
+            else
+              echo "⏳ DNS: имя 'db' не резолвится. Ждём 8 с..."
             fi
-            echo "⏳ Попытка $i: PostgreSQL не отвечает. Ждём 7с..."
-            sleep 7
+            sleep 8
           done
-          echo "❌ PostgreSQL не запустился за 280с!"
+          echo "❌ PostgreSQL не запустился за 400 с!"
           exit 1
 
       # Запуск миграций
