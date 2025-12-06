@@ -4,128 +4,100 @@ name: Django CI/CD
 on:
   push:
     branches:
-      - main
       - develop
-      - feature/*
-
+      - feature/home_work
 
 jobs:
   test-and-deploy:
     runs-on: ubuntu-latest
+
     services:
-      db:
-        image: postgres:14
+      postgres:
+        image: postgres:15
         env:
-          POSTGRES_DB: ${{ secrets.DB_NAME }}
-          POSTGRES_USER: ${{ secrets.DB_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.DB_NAME }}  # Из .env
+          POSTGRES_USER: ${{ secrets.DB_USER }}  # Из .env
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Из .env
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ${secrets.DB_USER} -d ${secrets.DB_NAME}"
-          --health-interval 15s
-          --health-timeout 10s
-          --health-retries 20
+          --health-cmd="pg_isready -U ${secrets.DB_USER} -d ${secrets.DB_NAME}"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
       redis:
         image: redis:7
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=5
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Debug PostgreSQL Init
-        if: always()
-        run: docker logs ${{ job.services.db.id }} | grep -i "role\|user\|create" || echo "Инициализация не найдена"
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r ./requirements.txt
 
-      # Генерация .env из секретов и констант
-      - name: Configure .env
-        run: |
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-          echo "DEBUG=${{ secrets.DEBUG }}" >> .env
-          echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env
-          echo "DJANGO_SETTINGS_MODULE=${{ secrets.DJANGO_SETTINGS_MODULE }}" >> .env
-          echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-          echo "DB_HOST=db" >> .env
-          echo "DB_PORT=5432" >> .env
-          echo "REDIS_HOST=redis" >> .env
-          echo "REDIS_PORT=6379" >> .env
-          echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}" >> .env
-
-      # Проверка, что .env создан
-      - name: Validate .env
-        run: |
-          if [ -f .env ]; then
-            echo ".env успешно создан"
-            cat .env  # Вывод для отладки (можно убрать)
-          else
-            echo "Ошибка: .env не создан!"
-            exit 1
-          fi
-
-      # Ожидание PostgreSQL с усиленной проверкой
       - name: Wait for PostgreSQL
         run: |
-          echo "Начинаем проверку PostgreSQL (до 400 с)..."
-          for i in {1..50}; do
-            if getent hosts db > /dev/null; then
-              echo "✅ DNS: имя 'db' резолвится (попытка $i)"
-              if nc -zv db 5432; then
-                echo "✅ PostgreSQL готов на попытке $i!"
-                exit 0
-              fi
-            else
-              echo "⏳ DNS: имя 'db' не резолвится. Ждём 8 с..."
-            fi
-            sleep 8
+          for i in {1..30}; do
+            pg_isready -h postgres -p 5432 -U ${secrets.DB_USER} -d ${secrets.DB_NAME} && break
+            echo "Waiting for PostgreSQL... ($i)"
+            sleep 5
           done
-          echo "❌ PostgreSQL не запустился за 400 с!"
-          exit 1
 
-      # Запуск миграций
-      - name: Run migrations
-        run: python manage.py migrate
-        env:
-          DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
-        continue-on-error: false
+      - name: Wait for Redis
+        run: |
+          for i in {1..10}; do
+            redis-cli -h redis -p 6379 ping && break
+            echo "Waiting for Redis... ($i)"
+            sleep 2
+          done
 
-      # Запуск тестов
       - name: Run tests
-        run: python manage.py test --verbosity=2
         env:
-          DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
-        continue-on-error: false
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: 1
+          ALLOWED_HOSTS: 127.0.0.1,localhost
+          DJANGO_SETTINGS_MODULE: home_work_7.settings
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: postgres  # Имя сервиса
+          DB_PORT: 5432
+          REDIS_HOST: redis  # Имя сервиса
+          REDIS_PORT: 6379
+          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+        run: |
+          . .venv/bin/activate
+          cd backend
+          python manage.py test
 
-      # Деплой на сервер
       - name: Deploy to server
         if: success()
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v0.1.9
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
+          port: ${{ secrets.SSH_PORT }}
           script: |
-            cd ~/home_work_10
-            git pull origin ${{ github.ref_name }}
-            docker-compose down || true
+            cd ~/Home_Work_10
+            git reset --hard
+            git pull origin develop
+            docker-compose down
             docker-compose up -d --build
