@@ -24,6 +24,10 @@ staticfiles/
 # Migrations — храним в git, кроме __pycache__
 */migrations/__pycache__/
 
+# Celery
+celerybeat-schedule
+celerybeat-schedule-*
+
 # IDE
 # PyCharm
 .idea/
@@ -35,11 +39,9 @@ staticfiles/
 .vscode/
 
 # Environment files
-.env
-.env.example
+.env          # реальные секреты игнорируем
+# .env.example оставляем в репо, чтобы показать пример
 
 # OS
 .DS_Store
 Thumbs.db
-celerybeat-schedule
-celerybeat-schedule-*
