@@ -75,7 +75,7 @@ WSGI_APPLICATION = 'home_work_7.wsgi.application'
 # 1. Если явно задан DB_HOST в .env/окружении — используем его.
 # 2. Иначе, если DOCKER_ENV задан (в docker-compose укажем DOCKER_ENV=1) — 'db'
 # 3. Иначе — '127.0.0.1'
-_default_db_host = 'db' if os.getenv('DOCKER_ENV') else '127.0.0.1'
+_default_db_host = os.getenv("DOCKER_ENV", None) and "db" or "localhost"
 DB_HOST = config('DB_HOST', default=_default_db_host, cast=str)
 DB_NAME = config('DB_NAME', default='home_work_10', cast=str)
 DB_USER = config('DB_USER', default='postgres', cast=str)
