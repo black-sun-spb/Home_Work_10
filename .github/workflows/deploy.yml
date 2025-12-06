@@ -4,7 +4,7 @@ name: Django CI/CD
 on:
   push:
     branches:
-      - develop
+      - develope
       - feature/home_work
 
 jobs:
@@ -98,6 +98,6 @@ jobs:
           script: |
             cd ~/Home_Work_10
             git reset --hard
-            git pull origin develop
+            git pull origin feature/home_work
             docker-compose down
             docker-compose up -d --build
