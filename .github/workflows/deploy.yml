@@ -17,13 +17,13 @@ jobs:
       db:
         image: postgres:15
         env:
-          POSTGRES_DB: project_db
-          POSTGRES_USER: admin_user
-          POSTGRES_PASSWORD: StrongPass!2025
+          POSTGRES_DB: ${{ secrets.DB_NAME }}
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U admin_user -d project_db"
+          --health-cmd "pg_isready -U ${secrets.DB_USER} -d ${secrets.DB_NAME}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -52,39 +52,62 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Настройка .env для тестов
+      # Генерация .env из секретов и констант
       - name: Configure .env
         run: |
-          echo "SECRET_KEY=test-secret-key-for-ci" >> .env
-          echo "DEBUG=1" >> .env
-          echo "DB_NAME=project_db" >> .env
-          echo "DB_USER=admin_user" >> .env
-          echo "DB_PASSWORD=StrongPass!2025" >> .env
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+          echo "DEBUG=${{ secrets.DEBUG }}" >> .env
+          echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env
+          echo "DJANGO_SETTINGS_MODULE=${{ secrets.DJANGO_SETTINGS_MODULE }}" >> .env
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
           echo "DB_HOST=db" >> .env
           echo "DB_PORT=5432" >> .env
           echo "REDIS_HOST=redis" >> .env
           echo "REDIS_PORT=6379" >> .env
-          echo "ALLOWED_HOSTS=158.160.182.105,localhost,127.0.0.1" >> .env
-          echo "STRIPE_API_KEY=sk_test_1234567890abcdef" >> .env
-          echo "DJANGO_SETTINGS_MODULE=home_work_7.settings_test" >> .env
+          echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}" >> .env
 
-      # Небольшая пауза, чтобы сервисы успели подняться
-      - name: Wait for services
-        run: sleep 15
+      # Проверка, что .env создан
+      - name: Validate .env
+        run: |
+          if [ -f .env ]; then
+            echo ".env успешно создан"
+            cat .env  # Вывод для отладки (можно убрать)
+          else
+            echo "Ошибка: .env не создан!"
+            exit 1
+          fi
+
+      # Ожидание PostgreSQL с усиленной проверкой
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..20}; do
+            if nc -zv db 5432; then
+              echo "PostgreSQL готов!"
+              exit 0
+            fi
+            echo "Попытка $i: PostgreSQL не отвечает, ждём 5с..."
+            sleep 5
+          done
+          echo "Ошибка: PostgreSQL не запустился за 100с!"
+          exit 1
 
       # Запуск миграций
       - name: Run migrations
         run: python manage.py migrate
         env:
-          DJANGO_SETTINGS_MODULE: home_work_7.settings_test
+          DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
+        continue-on-error: false
 
       # Запуск тестов
       - name: Run tests
-        run: python manage.py test
+        run: python manage.py test --verbosity=2
         env:
-          DJANGO_SETTINGS_MODULE: home_work_7.settings_test
+          DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
+        continue-on-error: false
 
-      # Деплой на сервер (только если тесты прошли)
+      # Деплой на сервер
       - name: Deploy to server
         if: success()
         uses: appleboy/ssh-action@master
@@ -96,5 +119,5 @@ jobs:
           script: |
             cd ~/home_work_10
             git pull origin ${{ github.ref_name }}
-            docker-compose down
+            docker-compose down || true
             docker-compose up -d --build
