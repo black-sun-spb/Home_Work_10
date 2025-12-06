@@ -10,7 +10,6 @@ on:
 
 jobs:
   test-and-deploy:
-    name: Test and Deploy
     runs-on: ubuntu-latest
 
     services:
@@ -45,7 +44,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: 3.12
 
       - name: Install dependencies
         run: |
@@ -68,23 +67,31 @@ jobs:
           echo "STRIPE_API_KEY=sk_test_1234567890abcdef" >> .env
           echo "DJANGO_SETTINGS_MODULE=home_work_7.settings_test" >> .env
 
-      # Ждём пока сервисы будут готовы (Healthcheck встроен в сервисы)
-      - name: Wait for services
+      # Ждём готовности PostgreSQL
+      - name: Wait for PostgreSQL
         run: |
-          echo "Waiting for PostgreSQL and Redis..."
           for i in {1..20}; do
-            if [[ $(docker inspect --format='{{.State.Health.Status}}' $(docker ps -qf "name=db")) == "healthy" ]] && \
-               [[ $(docker inspect --format='{{.State.Health.Status}}' $(docker ps -qf "name=redis")) == "healthy" ]]; then
-              echo "All services are healthy!"
-              exit 0
+            if nc -zv db 5432; then
+              echo "PostgreSQL is ready!"
+              break
             fi
-            echo "Services not ready yet, waiting 5s..."
+            echo "Waiting for PostgreSQL... attempt $i/20"
             sleep 5
           done
-          echo "Services failed to become healthy!"
-          exit 1
 
-      # Запуск миграций
+      # Ждём готовности Redis
+      - name: Wait for Redis
+        run: |
+          for i in {1..20}; do
+            if nc -zv redis 6379; then
+              echo "Redis is ready!"
+              break
+            fi
+            echo "Waiting for Redis... attempt $i/20"
+            sleep 5
+          done
+
+      # Запускаем миграции
       - name: Run migrations
         run: python manage.py migrate
         env:
