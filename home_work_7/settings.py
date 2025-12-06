@@ -172,6 +172,5 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 TEST_RUNNER = 'django.test.runner.DiscoverRunner'
 CACHES = {'default': {'BACKEND': 'django.core.cache.backends.dummy.DummyCache'}}
