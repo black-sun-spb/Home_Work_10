@@ -1,3 +1,4 @@
+# .github/workflows/deploy.yml
 name: Django CI/CD
 
 on:
@@ -16,21 +17,26 @@ jobs:
       db:
         image: postgres:15
         env:
-          POSTGRES_DB: project_db
-          POSTGRES_USER: admin_user
-          POSTGRES_PASSWORD: StrongPass!2025
+          POSTGRES_DB: ${DB_NAME}
+          POSTGRES_USER: ${DB_USER}
+          POSTGRES_PASSWORD: ${DB_PASSWORD}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U admin_user -d project_db"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
       redis:
         image: redis:7
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout repository
@@ -39,7 +45,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: 3.12
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -50,8 +56,7 @@ jobs:
       - name: Configure .env
         run: |
           echo "SECRET_KEY=test-secret-key-for-ci" >> .env
-          echo "DEBUG=0" >> .env
-          echo "ALLOWED_HOSTS=127.0.0.1,localhost" >> .env
+          echo "DEBUG=1" >> .env
           echo "DB_NAME=project_db" >> .env
           echo "DB_USER=admin_user" >> .env
           echo "DB_PASSWORD=StrongPass!2025" >> .env
@@ -59,23 +64,25 @@ jobs:
           echo "DB_PORT=5432" >> .env
           echo "REDIS_HOST=redis" >> .env
           echo "REDIS_PORT=6379" >> .env
+          echo "ALLOWED_HOSTS=158.160.182.105,localhost,127.0.0.1" >> .env
+          echo "STRIPE_API_KEY=sk_test_1234567890abcdef" >> .env
           echo "DJANGO_SETTINGS_MODULE=home_work_7.settings_test" >> .env
 
-      # Ждём готовности PostgreSQL
-      - name: Wait for PostgreSQL
+      # Ждём пока сервисы healthy (Healthcheck встроен)
+      - name: Wait for services
         run: |
-          for i in {1..10}; do
-            if nc -zv db 5432; then
-              echo "PostgreSQL is ready!"
-              exit 0
-            fi
-            echo "Attempt $i: PostgreSQL not ready, waiting 5s..."
+          echo "Waiting for DB and Redis to be healthy..."
+          until [[ $(docker inspect --format='{{.State.Health.Status}}' $(docker ps -qf "name=_db_")) == "healthy" ]]; do
+            echo "PostgreSQL not ready yet..."
             sleep 5
           done
-          echo "PostgreSQL failed to start!"
-          exit 1
+          until [[ $(docker inspect --format='{{.State.Health.Status}}' $(docker ps -qf "name=_redis_")) == "healthy" ]]; do
+            echo "Redis not ready yet..."
+            sleep 5
+          done
+          echo "All services are healthy!"
 
-      # Применяем миграции
+      # Запускаем миграции
       - name: Run migrations
         run: python manage.py migrate
         env:
@@ -87,7 +94,7 @@ jobs:
         env:
           DJANGO_SETTINGS_MODULE: home_work_7.settings_test
 
-      # Деплой (если тесты успешны)
+      # Деплой на сервер (только если тесты прошли)
       - name: Deploy to server
         if: success()
         uses: appleboy/ssh-action@master
@@ -97,8 +104,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            cd ~/Home_work_10
+            cd ~/home_work_10
             git pull origin ${{ github.ref_name }}
             docker-compose down
             docker-compose up -d --build
-
