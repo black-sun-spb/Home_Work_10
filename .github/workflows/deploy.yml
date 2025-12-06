@@ -8,11 +8,10 @@ on:
       - develop
       - feature/*
 
+
 jobs:
   test-and-deploy:
-    name: Test and Deploy
     runs-on: ubuntu-latest
-
     services:
       db:
         image: postgres:15
@@ -24,9 +23,9 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U ${secrets.DB_USER} -d ${secrets.DB_NAME}"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 20
 
       redis:
         image: redis:7
@@ -82,15 +81,16 @@ jobs:
       # Ожидание PostgreSQL с усиленной проверкой
       - name: Wait for PostgreSQL
         run: |
-          for i in {1..20}; do
+          echo "Начинаем проверку PostgreSQL (до 300с)..."
+          for i in {1..40}; do
             if nc -zv db 5432; then
-              echo "PostgreSQL готов!"
+              echo "✅ PostgreSQL готов на попытке $i!"
               exit 0
             fi
-            echo "Попытка $i: PostgreSQL не отвечает, ждём 5с..."
-            sleep 5
+            echo "⏳ Попытка $i: PostgreSQL не отвечает. Ждём 7с..."
+            sleep 7
           done
-          echo "Ошибка: PostgreSQL не запустился за 100с!"
+          echo "❌ PostgreSQL не запустился за 280с!"
           exit 1
 
       # Запуск миграций
