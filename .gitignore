@@ -3,13 +3,11 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.pyc
 
-# Virtual environment
+# Virtual environments
 .venv/
 venv/
 ENV/
-.env
 env/
 env.bak/
 venv.bak/
@@ -17,17 +15,16 @@ venv.bak/
 # Django
 *.log
 *.pot
-*.pyc
 *.mo
 db.sqlite3
 media/
 staticfiles/
 *.sqlite3
 
-# Migrations (если хочешь хранить их в git, можешь убрать этот блок)
-*/migrations/*.py
-!*/migrations/__init__.py
+# Migrations — храним в git, кроме __pycache__
+*/migrations/__pycache__/
 
+# IDE
 # PyCharm
 .idea/
 *.iml
@@ -36,6 +33,10 @@ staticfiles/
 
 # VSCode
 .vscode/
+
+# Environment files
+.env
+.env.example
 
 # OS
 .DS_Store
