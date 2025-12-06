@@ -3,7 +3,12 @@ version: "3.9"
 services:
   web:
     build: .
-    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    # Используем Gunicorn вместо runserver для продакшена
+    command: >
+      sh -c "
+        python manage.py migrate &&
+        gunicorn home_work_7.wsgi:application --bind 0.0.0.0:8000 --workers 3
+      "
     ports:
       - "8000:8000"
     env_file:
@@ -13,6 +18,13 @@ services:
     depends_on:
       - db
       - redis
+    # Добавляем healthcheck для мониторинга состояния
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+    restart: unless-stopped
 
   db:
     image: postgres:15
@@ -22,35 +34,68 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Улучшенная конфигурация PostgreSQL
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    # Включаем persistence
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
 
   celery:
     build: .
-    command: celery -A home_work_7 worker --loglevel=INFO
+    command: celery -A home_work_7 worker -l info --concurrency 2
     env_file:
       - ./.env
     volumes:
       - .:/app
     depends_on:
-      - web
       - redis
       - db
+    restart: unless-stopped
+    # Ограничиваем ресурсы
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   celery_beat:
     build: .
-    command: celery -A home_work_7 beat --loglevel=INFO
+    command: celery -A home_work_7 beat -l info
     env_file:
       - ./.env
     volumes:
       - .:/app
     depends_on:
-      - web
       - redis
       - db
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
