@@ -10,65 +10,74 @@ jobs:
   test-and-deploy:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: testdb
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U testuser -d testdb"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=5s
-          --health-timeout=2s
-          --health-retries=5
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      # Docker уже установлен в GitHub Runner. Просто включаем.
+      - name: Enable Docker
+        run: |
+          sudo systemctl start docker
+          docker --version
 
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client redis-tools
+
+      ##############################
+      # POSTGRES
+      ##############################
+      - name: Start PostgreSQL
+        run: |
+          docker run -d \
+            --name pg \
+            -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
+            -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            -p 5432:5432 \
+            postgres:15
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..20}; do
+            pg_isready -h localhost -U ${{ secrets.POSTGRES_USER }} && break
+            echo "Waiting for PostgreSQL..."
+            sleep 3
+          done
+
+      ##############################
+      # REDIS
+      ##############################
+      - name: Start Redis
+        run: |
+          docker run -d \
+            --name redis \
+            -p 6379:6379 \
+            redis:7
+
+      - name: Wait for Redis
+        run: |
+          for i in {1..10}; do
+            redis-cli ping && break
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+
+      ##############################
+      # PYTHON & TESTS
+      ##############################
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install --upgrade pip
-          pip install -r ./requirements.txt
-
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..30}; do
-            pg_isready -h localhost -p 5432 -U testuser -d testdb && break
-            echo "Waiting for PostgreSQL... ($i)"
-            sleep 5
-          done
-
-      - name: Wait for Redis
-        run: |
-          for i in {1..10}; do
-            redis-cli -h localhost -p 6379 ping && break
-            echo "Waiting for Redis... ($i)"
-            sleep 2
-          done
+          pip install -r requirements.txt
 
       - name: Run tests
         env:
@@ -76,9 +85,9 @@ jobs:
           DEBUG: 1
           DJANGO_SETTINGS_MODULE: home_work_7.settings
 
-          DB_NAME: testdb
-          DB_USER: testuser
-          DB_PASSWORD: testpass
+          DB_NAME: ${{ secrets.POSTGRES_DB }}
+          DB_USER: ${{ secrets.POSTGRES_USER }}
+          DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           DB_HOST: localhost
           DB_PORT: 5432
 
@@ -86,10 +95,14 @@ jobs:
           REDIS_PORT: 6379
 
           STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+
         run: |
           . .venv/bin/activate
           python manage.py test
 
+      ##############################
+      # DEPLOY TO SERVER
+      ##############################
       - name: Deploy to server
         if: success()
         uses: appleboy/ssh-action@v0.1.9
@@ -100,7 +113,9 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             cd ~/Home_Work_10
+            git fetch --all
             git reset --hard
+            git checkout feature/home_work
             git pull origin feature/home_work
             docker-compose down
             docker-compose up -d --build
