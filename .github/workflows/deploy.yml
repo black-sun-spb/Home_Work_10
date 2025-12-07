@@ -14,15 +14,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Docker уже установлен в GitHub Runner. Просто включаем.
+      - name: Enable Docker
+        run: |
+          sudo systemctl start docker
+          docker --version
+
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client redis-tools docker.io
+          sudo apt-get install -y postgresql-client redis-tools
 
-      #######################
-      #  START POSTGRES
-      #######################
-      - name: Start PostgreSQL using secrets
+      ##############################
+      # POSTGRES
+      ##############################
+      - name: Start PostgreSQL
         run: |
           docker run -d \
             --name pg \
@@ -40,9 +46,9 @@ jobs:
             sleep 3
           done
 
-      #######################
-      #  START REDIS
-      #######################
+      ##############################
+      # REDIS
+      ##############################
       - name: Start Redis
         run: |
           docker run -d \
@@ -58,9 +64,9 @@ jobs:
             sleep 2
           done
 
-      #######################
-      #  Python & tests
-      #######################
+      ##############################
+      # PYTHON & TESTS
+      ##############################
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -94,9 +100,9 @@ jobs:
           . .venv/bin/activate
           python manage.py test
 
-      #######################
-      #  Deploy
-      #######################
+      ##############################
+      # DEPLOY TO SERVER
+      ##############################
       - name: Deploy to server
         if: success()
         uses: appleboy/ssh-action@v0.1.9
@@ -107,7 +113,9 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             cd ~/Home_Work_10
+            git fetch --all
             git reset --hard
+            git checkout feature/home_work
             git pull origin feature/home_work
             docker-compose down
             docker-compose up -d --build
