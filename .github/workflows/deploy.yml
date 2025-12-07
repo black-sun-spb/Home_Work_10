@@ -14,13 +14,13 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: testdb
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U testuser -d testdb"
+          --health-cmd="pg_isready -U ${{ secrets.POSTGRES_USER }} -d ${{ secrets.POSTGRES_DB }}"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -76,9 +76,9 @@ jobs:
           DEBUG: 1
           DJANGO_SETTINGS_MODULE: home_work_7.settings
 
-          DB_NAME: testdb
-          DB_USER: testuser
-          DB_PASSWORD: testpass
+          DB_NAME: ${{ secrets.POSTGRES_DB }}
+          DB_USER: ${{ secrets.POSTGRES_USER }}
+          DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           DB_HOST: localhost
           DB_PORT: 5432
 
